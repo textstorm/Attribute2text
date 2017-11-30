@@ -11,8 +11,34 @@ import nltk
 import re
 import os
 
-#data utils
-def load_data(file_dir):
+class DataItem(collections.namedtuple("DataItem",
+                                      ("user",
+                                       "product",
+                                       "rating",
+                                       "review"))):
+  pass
+
+def load_data(data_dir):
+  print_out("Loading data files...")
+  start_time = time.time()
+  f = open(data_dir, 'r')
+  data = []
+  while True:
+    line = f.readline()
+    if not line:
+      break
+    line = line.strip().split('\t')
+    data_item = DataItem(user=line[0],
+                         product=line[1],
+                         rating=line[2],
+                         review=line[3])
+    data.append(data_item)
+  f.close()
+  print_out("Loaded %d reviews from files, time %.2fs" \
+      % (len(data), time.time() - start_time))
+  return data
+
+def load_data_(file_dir):
   print_out("Loading data files.")
   start_time = time.time()
   f = open(file_dir, 'r')
