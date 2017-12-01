@@ -22,7 +22,7 @@ def main(args):
   for epoch in range(1, args.nb_epoch + 1):
     utils.print_out("Epoch: %d start" % epoch)
     utils.print_out("- " * 50)
-
+    
     loss_t = 0.0
     start_train_time = time.time()
     all_batch = utils.get_batches(train_data_vec, args.batch_size)
