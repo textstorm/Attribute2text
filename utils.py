@@ -5,8 +5,6 @@ import tensorflow as tf
 import numpy as np
 import sys
 import time
-import nltk
-import re
 import os
 
 class DataItem(collections.namedtuple("DataItem",
@@ -55,36 +53,6 @@ def vectorize(data, word2index):
                         review=vec_review)
     vec_data.append(new_item)
   return vec_data
-
-def raw_vectorize(queries,  answers, word2index, sort_by_len=False):
-  """
-    note: the dict is only 50K,words not in dict is 0
-    queries: questions after vectorize
-    answers: answers after vectorize
-    if sort_by_len equal True, documents sorted by length 
-  """
-  vec_queries = []
-  vec_answers = []
-  for query in queries:
-    seq_q = [word2index[w] if w in word2index else 0 for w in query.split()]
-    vec_queries.append(seq_q)
-
-  for answer in answers:
-    seq_a = [word2index[w] if w in word2index else 0 for w in answer.split()]
-    vec_answers.append(seq_a)
-
-  def len_argsort(seq):
-    return sorted(range(len(seq)), key=lambda x: len(seq[x]))
-  
-  if sort_by_len:
-    vec_queries_and_answers = []
-    for idx, query in enumerate(vec_queries):
-      vec_queries_and_answers.append(query + vec_answers[idx])
-
-    sort_index = len_argsort(vec_queries_and_answers)
-    vec_queries = [vec_queries[i] for i in sort_index]
-    vec_answers = [vec_answers[i] for i in sort_index]
-  return vec_queries, vec_answers
 
 def de_vectorize(sample_id, index2word):
   """ The reverse process of vectorization"""
