@@ -20,6 +20,10 @@ def get_args():
   parser.add_argument('--eos', type=str, default='</s>', help='eos')
 
   #model details
+  parser.add_argument('--attribute_size', type=int, default=64, help='dimension of attribute')
+  parser.add_argument('--user_size', type=int, default=19675, help='number of user')
+  parser.add_argument('--book_size', type=int, default=80256, help='number of book')
+  parser.add_argument('--rating_size', type=int, default=5, help='number of rating')
   parser.add_argument('--hidden_size', type=int, default=64, help='dimension of rnn hidden layer')
   parser.add_argument('--num_layers', type=int, default=4, help='layers number of rnn')
   parser.add_argument('--forget_bias', type=float, default=1., help='forget bias of cell')
