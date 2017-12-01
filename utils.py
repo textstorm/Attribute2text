@@ -86,6 +86,15 @@ def get_batchidx(n_data, batch_size, shuffle=False):
     batch_index.append(np.arange(idx, min(idx + batch_size, n_data)))
   return batch_index
 
+class BatchedInput(collections.namedtuple("BatchedInput",
+                                          ("user",
+                                           "product",
+                                           "rating",
+                                           "review_in",
+                                           "review_out",
+                                           "review_len"))):
+  pass
+
 def get_batches(data, batch_size):
   """
     read all data into ram once
@@ -105,7 +114,13 @@ def get_batches(data, batch_size):
     review_out = map(lambda x: (x + eos), review)
     review_in, review_len = padding_data(review_in)
     review_out, _ = padding_data(review_out)
-    all_batch.append((user, product, rating, review_in, review_out, review_len))
+    batched_input = BatchedInput(user=user,
+                                 product=product,
+                                 rating=rating,
+                                 review_in=review_in,
+                                 review_out=review_out,
+                                 review_len=review_len)
+    all_batch.append(batched_input)
   return all_batch
 
 class BatchedInput_(collections.namedtuple("BatchedInput",
