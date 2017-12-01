@@ -37,8 +37,8 @@ def load_data(data_dir):
 def build_vocab_from_file(vocab_file):
   f = open(vocab_file, 'r')
   index2word = f.readlines()
-  # index2word = map(lambda x: x.strip(), index2word)
   index2word = map(lambda x: x.split('\t')[0], index2word)
+  index2word = ["<unk>"] + ["<s>"] + ["</s>"] + index2word
   word2index = dict([(word, idx) for idx, word in enumerate(index2word)])
   print_out("%d words loadded from vocab file" % len(index2word))
   return index2word, word2index
@@ -81,36 +81,34 @@ def get_batchidx(n_data, batch_size, shuffle=False):
   idx_list = np.arange(0, n_data, batch_size)
   if shuffle:
     np.random.shuffle(idx_list)
-  bat_index = []
+  batch_index = []
   for idx in idx_list:
-    bat_index.append(np.arange(idx, min(idx + batch_size, n_data)))
-  return bat_index
+    batch_index.append(np.arange(idx, min(idx + batch_size, n_data)))
+  return batch_index
 
-def get_batches(queries, answers, batch_size):
+def get_batches(data, batch_size):
   """
     read all data into ram once
   """
   sos = [1]
   eos = [2]
 
-  minibatches = get_batchidx(len(queries), batch_size)
-  all_bat = []
+  minibatches = get_batchidx(len(data), batch_size, shuffle=True)
+  all_batch = []
   for minibatch in minibatches:
-    q_bat = [queries[t] for t in minibatch]
-    a_bat = [answers[t] for t in minibatch]
-    tgt_in = map(lambda tgt: (sos + tgt), a_bat)
-    tgt_out = map(lambda tgt: (tgt + eos), a_bat)
-    src, src_len = padding_data(q_bat)
-    tgt_in, tgt_len = padding_data(tgt_in)
-    tgt_out, tgt_len = padding_data(tgt_out)
-    if not isinstance(tgt_in, np.ndarray):
-      tgt_in = np.array(tgt_in)
-    if not isinstance(tgt_out, np.ndarray):
-      tgt_out = np.array(tgt_out)
-    all_bat.append((src, src_len, tgt_in, tgt_out, tgt_len))
-  return all_bat
+    data_batch = [data[t] for t in minibatch]
+    user = map(lambda x: (x.user), data_batch)
+    product = map(lambda x: (x.product), data_batch)
+    rating = map(lambda x: (x.rating), data_batch)
+    review = map(lambda x: (x.review), data_batch)
+    review_in = map(lambda x: (sos + x), review)
+    review_out = map(lambda x: (x + eos), review)
+    review_in, review_len = padding_data(review_in)
+    review_out, _ = padding_data(review_out)
+    all_batch.append((user, product, rating, review_in, review_out, review_len))
+  return all_batch
 
-class BatchedInput(collections.namedtuple("BatchedInput",
+class BatchedInput_(collections.namedtuple("BatchedInput",
                                           ("initializer",
                                            "source",
                                            "target_input",
