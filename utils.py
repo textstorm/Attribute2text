@@ -1,6 +1,4 @@
 
-#from __future__ import print_function
-
 from collections import Counter
 import collections
 import tensorflow as tf
@@ -38,175 +36,25 @@ def load_data(data_dir):
       % (len(data), time.time() - start_time))
   return data
 
-def load_data_(file_dir):
-  print_out("Loading data files.")
-  start_time = time.time()
-  f = open(file_dir, 'r')
-  sentences = []
-  while True:
-    sentence = f.readline()
-    if not sentence:
-      break
-
-    sentence = sentence.strip().lower()
-    sentences.append(sentence)
-
-  f.close()
-  print_out("Loaded %d sentences from files, time %.2fs" \
-      % (len(sentences), time.time() - start_time))
-  return sentences
-
-def load_data_test(file_dir):
-  print_out("Loading data files.")
-  start_time =time.time()
-  f = open(file_dir, 'r')
-  sentences = []
-  i = 0
-  while i < 100:
-    sentence = f.readline()
-    if not sentence:
-      break
-
-    sentence = sentence.strip().lower()
-    sentences.append(sentence)
-    i = i+1
-  f.close()
-  print_out("Loaded %d sentences from files, time %.2fs" % (len(sentences), time.time() - start_time))
-  return sentences
-
-def save_word_list(file_dir, sentences):
-  f = open(file_dir, "w")
-  for sentence in sentences:
-    f.write(" ".join(sentence) + "\n")
-  f.close()
-
-def save_vocab_list(file_dir, index2word):
-  f = open(file_dir, "w")
-  for word in index2word:
-    f.write("".join(word) + "\n")
-  f.close()
-
-def filter_sentences_with_whitelist(sentences, whitelist):
-  """
-    filter out the emoji in a sentence
-    whitelist: 
-  """
-  def filter_sentence(sentence, whitelist):
-    return "".join([ch for ch in sentence if ch in whitelist])
-
-  return [filter_sentence(sentence, whitelist) for sentence in sentences] 
-
-def filter_sentences_with_punct(sentences):
-  def filter_sentence(sentence):
-    #sentence = re.sub(r"([.!?])", r" \1", sentence)
-    sentence = re.sub(r"<u>|</u>", r"", sentence)
-    #return re.sub(r"[^a-zA-Z.!?]+", r" ", sentence)
-    return re.sub(r"[^a-zA-Z0-9.,!?\']+", r" ", sentence)
-  return [filter_sentence(sentence) for sentence in sentences]
-
-#retain '
-def filter_sentences_without_punct(sentences):
-  def filter_sentence(sentence):
-    sentence = re.sub(r"<u>|</u>", r"", sentence)
-    return re.sub(r"[^a-zA-Z0-9\']+", r" ", sentence)
-  return [filter_sentence(sentence) for sentence in sentences]
-
-def tokenizer(sentence):
-  return nltk.word_tokenize(sentence)
-
-def tokenize_data(sentences):
-  tokens = []
-  for sentence in sentences:
-    tokens.append(tokenizer(sentence))
-  return tokens
-
-def build_vocab_with_nltk(sentences, max_words=None):
-  print_out("Buildding vocabulary...")
-  word_count = Counter()
-  for sentence in sentences:
-    for word in sentence:
-      word_count[word] += 1
-
-  print_out("The dataset has %d different words totally" % len(word_count))
-  if not max_words:
-    max_words = len(word_count)
-  filter_out_words = len(word_count) - max_words
-
-  word_dict = word_count.most_common(max_words)
-  index2word = ["<unk>"] + ["<s>"] + ["</s>"] + [word[0] for word in word_dict]
-  word2index = dict([(word, idx) for idx, word in enumerate(index2word)])
-
-  print_out("%d words filtered out of the vocabulary and %d words in the vocabulary" % (filter_out_words, max_words))
-  return index2word, word2index
-
 def build_vocab_from_file(vocab_file):
   f = open(vocab_file, 'r')
   index2word = f.readlines()
-  index2word = map(lambda x: x.strip(), index2word)
+  # index2word = map(lambda x: x.strip(), index2word)
+  index2word = map(lambda x: x.split('\t')[0], index2word)
   word2index = dict([(word, idx) for idx, word in enumerate(index2word)])
   print_out("%d words loadded from vocab file" % len(index2word))
   return index2word, word2index
 
-def search_sentence_from_data(file_dir, search_sentence):
-  f = open(file_dir, 'r')
-  i = 0
-  while True:
-    sentence = f.readline()
-    if sentence.strip() == search_sentence:
-      print i
-      break
-    if not sentence:
-      break
-    i = i+1
-  f.close()
-
-def split_data(sentences, limits):
-  queries = []
-  answers = []
-  num_example = len(sentences) // 2
-  print_out("The dataset has %d queries and answers tuple" % num_example)
-
-  for i in range(0, len(sentences), 2):
-    qlen, alen = len(sentences[i]), len(sentences[i+1])
-    if qlen >= limits.q_min_len and alen >= limits.a_min_len:
-      if qlen <= limits.q_max_len and alen <= limits.a_max_len:
-        queries.append(sentences[i])
-        answers.append(sentences[i+1])
-
-  filtered_data_len = len(queries)
-  filter_out_len = num_example - filtered_data_len
-  print_out('%d tuple filtered out of the raw data' % filter_out_len)
-  return queries, answers
-
-def vectorize(queries,  answers, word2index, sort_by_len=False):
-  """
-    note: the dict is only 50K,words not in dict is 0
-    queries: questions after vectorize
-    answers: answers after vectorize
-    if sort_by_len equal True, documents sorted by length 
-  """
-  vec_queries = []
-  vec_answers = []
-  for query in queries:
-    seq_q = [word2index[w] if w in word2index else 0 for w in query]
-    vec_queries.append(seq_q)
-
-  for answer in answers:
-    seq_a = [word2index[w] if w in word2index else 0 for w in answer]
-    vec_answers.append(seq_a)
-
-  def len_argsort(seq):
-    return sorted(range(len(seq)), key=lambda x: len(seq[x]))
-  
-  if sort_by_len:
-    vec_queries_and_answers = []
-    for idx, query in enumerate(vec_queries):
-      vec_queries_and_answers.append(query + vec_answers[idx])
-
-    sort_index = len_argsort(vec_queries_and_answers)
-    vec_queries = [vec_queries[i] for i in sort_index]
-    vec_answers = [vec_answers[i] for i in sort_index]
-  return vec_queries, vec_answers
+def vectorize(data, word2index):
+  vec_data = []
+  for item in data:
+    vec_review = [word2index[w] if w in word2index else 0 for w in item.review.split()]
+    new_item = DataItem(user=int(item.user),
+                        product=int(item.product),
+                        rating=float(item.rating),
+                        review=vec_review)
+    vec_data.append(new_item)
+  return vec_data
 
 def raw_vectorize(queries,  answers, word2index, sort_by_len=False):
   """
