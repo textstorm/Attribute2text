@@ -49,7 +49,7 @@ def vectorize(data, word2index):
     vec_review = [word2index[w] if w in word2index else 0 for w in item.review.split()]
     new_item = DataItem(user=int(item.user),
                         product=int(item.product),
-                        rating=float(item.rating),
+                        rating=int(float(item.rating)),
                         review=vec_review)
     vec_data.append(new_item)
   return vec_data
