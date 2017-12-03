@@ -40,7 +40,14 @@ def build_vocab_from_file(vocab_file):
   index2word = map(lambda x: x.split('\t')[0], index2word)
   index2word = ["<unk>"] + ["<s>"] + ["</s>"] + index2word
   word2index = dict([(word, idx) for idx, word in enumerate(index2word)])
+  f.close()
   print_out("%d words loadded from vocab file" % len(index2word))
+  return index2word, word2index
+
+def build_vocab_from_file_with_length(vocab_file, read_length):
+  index2word, _ = build_vocab_from_file(vocab_file)
+  index2word = index2word[: read_length]
+  word2index = dict([(word, idx) for idx, word in enumerate(index2word)])
   return index2word, word2index
 
 def vectorize(data, word2index):
