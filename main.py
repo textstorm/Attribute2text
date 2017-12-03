@@ -12,7 +12,7 @@ def main(args):
   dev_data = utils.load_data(args.dev_dir)
   test_data = utils.load_data(args.test_dir)
 
-  index2word, word2index = utils.build_vocab_from_file(args.vocab_dir)
+  index2word, word2index = utils.build_vocab_from_file_with_length(args.vocab_dir, 15000)
   train_data_vec = utils.vectorize(train_data, word2index) 
 
   config_proto = utils.get_config_proto()
@@ -20,6 +20,7 @@ def main(args):
 
   generator = model.ReviewGenerator(args, sess, name='ReviewGenerator')
   for epoch in range(1, args.nb_epoch + 1):
+    start_time = time.time()
     utils.print_out("Epoch: %d start" % epoch)
     utils.print_out("- " * 50)
 
@@ -37,6 +38,7 @@ def main(args):
       if idx % 10 == 0:
         print "Epoch: %d, Batch: %d, Loss: %.9f" % (epoch, idx, loss_t)
 
+    print "%d second this epoch" % (time.time() - start_time)
 if __name__ == '__main__':
   args = config.get_args()
   main(args)
