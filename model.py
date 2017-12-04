@@ -28,12 +28,17 @@ class ReviewGenerator(object):
     self.rnn_initializer = tf.random_uniform_initializer(-0.08, 0.08)
     self.sess = sess
 
+    self.global_step = tf.Variable(0, trainable=False)
     self.batch_size = args.batch_size
-    self.learning_rate = args.learning_rate
+    self.learning_rate = tf.constant(args.learning_rate)
+    self.learning_rate = tf.train.exponential_decay(self.learning_rate, 
+                                                    self.global_step,
+                                                    102489,
+                                                    0.97,
+                                                    staircase=True)
 
     # self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
     self.optimizer = tf.train.RMSPropOptimizer(self.learning_rate)
-    self.global_step = tf.Variable(0, trainable=False)
 
     self.add_placeholder()
     self.build_graph()
@@ -43,6 +48,9 @@ class ReviewGenerator(object):
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
 
+    self.tvars = tf.trainable_variables()
+    self.saver = tf.train.Saver()
+    
   def add_placeholder(self):
     """ add placeholder for data """
     self.user = tf.placeholder(tf.int32, [None], name="user")
@@ -153,7 +161,6 @@ class ReviewGenerator(object):
         labels=self.review_out, logits=self.logits)
     weight = tf.sequence_mask(self.review_len, max_len, dtype=self.logits.dtype)
     self.loss_op = tf.reduce_sum(loss * weight) / tf.to_float(self.batch_size)
-    print self.loss_op.get_shape().as_list()
 
   def build_train(self):
     params = tf.trainable_variables()
@@ -172,8 +179,9 @@ class ReviewGenerator(object):
   def train(self, user, product, rating, review_in, review_out, review_len):
     feed_dict = {self.user: user, self.product: product, self.rating: rating,
         self.review_in: review_in, self.review_out: review_out, self.review_len: review_len}
-    _, loss = self.sess.run([self.train_op, self.loss_op], feed_dict=feed_dict)
-    return loss
+    _, loss, global_step = self.sess.run([self.train_op, self.loss_op, self.global_step], 
+        feed_dict=feed_dict)
+    return loss, global_step
 
   def infer(self, user, product, rating):
     feed_dict = {self.user: user, self.product: product, self.rating: rating}
