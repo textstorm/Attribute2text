@@ -81,7 +81,7 @@ def padding_data(sentences):
     pdata[idx, :lengths[idx]] = seq
   return pdata, lengths 
 
-def get_batchidx(n_data, batch_size, shuffle=False):
+def get_batchidx_(n_data, batch_size, shuffle=False):
   """
     batch all data index into a list
   """
@@ -91,6 +91,20 @@ def get_batchidx(n_data, batch_size, shuffle=False):
   batch_index = []
   for idx in idx_list:
     batch_index.append(np.arange(idx, min(idx + batch_size, n_data)))
+  return batch_index
+
+def get_batchidx(n_data, batch_size, shuffle=False):
+  """
+    batch all data index into a list
+  """
+  idx_list = np.arange(n_data)
+  if shuffle:
+    np.random.shuffle(idx_list)
+  batch_index = []
+  num_batches = int(np.ceil(float(n_data) / batch_size))
+  for idx in range(num_batches):
+    start_idx = idx * batch_size
+    batch_index.append(idx_list[start_idx: min(start_idx + batch_size, n_data)])
   return batch_index
 
 class BatchedInput(collections.namedtuple("BatchedInput",
