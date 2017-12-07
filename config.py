@@ -9,9 +9,9 @@ def get_args():
   parser.add_argument('--random_seed', type=int, default=1013, help='random seed')
 
   parser.add_argument('--train_dir', type=str, default='../data/train.txt', help='train data dir')
-  parser.add_argument('--dev_dir', type=str, default='../data/dev.txt', help='dev data dir')
-  parser.add_argument('--test_dir', type=str, default='../data/test.txt', help='test data dir')
-  parser.add_argument('--vocab_dir', type=str, default='../data/vocab.txt', help='vocab dir')
+  parser.add_argument('--eval_dir', type=str, default='../data/dev.txt', help='dev data dir')
+  parser.add_argument('--infer_dir', type=str, default='../data/test.txt', help='test data dir')
+  parser.add_argument('--vocab_dir', type=str, default='../data/new_vocab.txt', help='vocab dir')
   parser.add_argument('--glove_dir', type=str, default=None, help='pretrain word vector dir')
   parser.add_argument('--save_dir', type=str, default='../save', help='save directory')
   parser.add_argument('--batch_size', type=int, default=64, help='train batch size')
