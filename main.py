@@ -3,123 +3,111 @@ import tensorflow as tf
 import numpy as np
 import utils
 import config
+import model_helper
+
 import time
+import random
 import os
 
-from model import Att2Text
+def run_sample_decode(args, infer_model, infer_sess, model_dir, infer_data):
+  with infer_model.graph.as_default():
+    loaded_infer_model, global_step = model_helper.create_or_load_model(
+        infer_model.model, model_dir, infer_sess, "infer")
 
-tf.app.flags.DEFINE_bool("forward_only", False, "Only do decoding")
-FLAGS = tf.app.flags.FLAGS
+  _sample_decode(args, loaded_infer_model, global_step, infer_sess, infer_data)
 
-def main():
-  #config
-  args = config.get_args()
+def _sample_decode(args, model, global_step, sess, infer_data):
+  decode_id = random.randint(0, len(infer_data) - 1)
+  decode_input = infer_data[decode_id]
+  sample_id, sample_words = model.infer(sess, decode_input.user, 
+      decode_input.product, decode_input.rating, decode_input.review_length)
 
-  dev_args = config.get_args()
-  dev_args.dropout = 0.
-  dev_args.batch_size = 128
+  if args.beam_width > 0:
+    sample_words = sample_words[0]
 
-  test_args = config.get_args()
-  test_args.dropout = 0.
-  test_args.batch_size = 1
+  utils.print_out("user_id: %d" % decode_input.user[0])
+  utils.print_out("product_id: %d" % decode_input.product[0])
+  utils.print_out("rating: %d" % decode_input.rating[0])
+  utils.print_out("gen_review: %s" % (" ".join(sample_words)))
 
+def run_internal_eval(args, eval_model, eval_sess, model_dir, eval_data):
+  with eval_model.graph.as_default():
+    loaded_eval_model, global_step = model_helper.create_or_load_model(
+        eval_model.model, model_dir, eval_sess, "eval")
+
+  eval_total_loss = 0.0
+  total_predict_count = 0.0
+  start_time = time.time()
+  for idx, batch in enumerate(eval_batch):
+    eval_loss, predict_count, batch_size = loaded_train_model.train(eval_sess, 
+        batch.user, batch.product, batch.rating, batch.review_input, batch.review_output, 
+        batch.review_length)
+    eval_total_loss += eval_loss * batch_size
+    total_predict_count += predict_count
+
+  eval_avg_loss = eval_total_loss / len(eval_data)
+  eval_ppl = np.exp(eval_total_loss / total_predict_count)
+  return eval_avg_loss, eval_ppl
+
+def run_full_eval(args, model_dir, infer_model, infer_sess, eval_model, eval_sess,
+                  infer_data):
+  """run eval and infer"""
+  run_sample_decode(args, infer_model, infer_sess, model_dir, infer_data)
+  dev_ppl, test_ppl = run_internal_eval(args, eval_model, eval_sess, model_dir)
+  dev_scores, test_scores, global_step = run_external_eval(
+      infer_model, infer_sess, model_dir, hparams, summary_writer)
+
+  return global_step, dev_scores, test_scores, dev_ppl, test_ppl
+
+def main(args):
+  # main
   save_dir = args.save_dir
   train_data = utils.load_data(args.train_dir)
-  dev_data = utils.load_data(args.dev_dir)
-  test_data = utils.load_data(args.test_dir)
+  eval_data = utils.load_data(args.eval_dir)
+  infer_data = utils.load_data(args.infer_dir)
 
-  index2word, word2index = utils.build_vocab_from_file_with_length(args.vocab_dir, 15000)
+  index2word, word2index = utils.load_vocab_from_file(args.vocab_dir)
   train_data_vec = utils.vectorize(train_data, word2index)
-  dev_data_vec = utils.vectorize(dev_data, word2index)
-  test_data_vec = utils.vectorize(test_data, word2index)
+  eval_data_vec = utils.vectorize(eval_data, word2index)
+  infer_data_vec = utils.vectorize(infer_data, word2index)
+
+  train_model = model_helper.build_train_model(args, use_attention=False)
+  eval_model = model_helper.build_eval_model(args, use_attention=False)
+  infer_model = model_helper.build_infer_model(args, use_attention=False)
 
   config_proto = utils.get_config_proto()
-  sess = tf.Session(config=config_proto)
+  train_sess = tf.Session(config=config_proto, graph=train_model.graph)
+  eval_sess = tf.Session(config=config_proto, graph=eval_model.graph)
+  infer_sess = tf.Session(config=config_proto, graph=infer_model.graph)
 
-  initializer = tf.random_uniform_initializer(-1.0 * args.init_w, args.init_w)
-  scope = "model"
-  with tf.variable_scope(scope, reuse=None, initializer=initializer):
-    model = Att2Text(args, sess, save_dir, forward=False, scope=scope)
-  with tf.variable_scope(scope, reuse=True, initializer=initializer):
-    dev_model = Att2Text(dev_args, sess, save_dir=None, forward=False, scope=scope)
-  with tf.variable_scope(scope, reuse=True, initializer=initializer):
-    test_model = Att2Text(test_args, sess, save_dir=None, forward=True, scope=scope)
+  eval_batch = utils.get_batches(eval_data_vec, 100)
+  infer_batch = utils.get_batches(eval_data_vec, 1)
+  with train_model.graph.as_default():
+    loaded_train_model, global_step = model_helper.create_or_load_model(
+        train_model.model, args.save_dir, train_sess, name="train")
 
-  print("Created computation graphs")
-  ckp_dir = os.path.join(save_dir, "checkpoints")
-  if not os.path.exists(ckp_dir):
-    os.mkdir(ckp_dir)
-  ckpt = tf.train.get_checkpoint_state(ckp_dir)
-  print("Created models with fresh parameters.")
-  sess.run(tf.global_variables_initializer())
+  for epoch in range(1, args.max_epoch + 1):
+    print "Epoch %d start, learning rate %f" % \
+        (epoch, loaded_train_model.learning_rate.eval(train_sess))
+    print "- " * 50
+    start_time = time.time()
+    all_batch = utils.get_batches(train_data_vec, args.batch_size)
+    train_loss = 0.
+    train_total_loss = 0.
+    # train_total_ppl = 0.
+    for idx, batch in enumerate(all_batch):
+      train_loss, train_ppl, global_step, predict_count = loaded_train_model.train(train_sess, 
+          batch.user, batch.product, batch.rating, batch.review_input, batch.review_output, 
+          batch.review_length)
+      train_total_loss += train_loss
+      if idx % args.print_step == 0:
+        print "epoch: %d, batch: %d, loss: %.9f, ppl: %f" % (epoch, idx, train_loss, train_ppl)
 
-  for line in generator.tvars:
-    print line
-
-  if not FLAGS.forward_only:
-    dm_checkpoint_path = os.path.join(ckp_dir, model.__class__.__name__+ ".ckpt")
-    global_step = 1
-    patience = 10
-    dev_loss_threshold = np.inf
-    best_dev_loss = np.inf
-
-    test_batch = utils.get_batches(test_data_vec, test_args.batch_size)
-    rand_id = random.randint(len(test_batch), 1)
-    batch = test_batch[rand_id]
-    test_model.infer(batch.user, batch.product, batch.rating)
-
-    for epoch in range(1, args.max_epoch + 1):
-      print "Epoch %d start, learning rate %f" % (epoch, model.learning_rate.eval())
-      print "- " * 50
-      start_time = time.time()
-      all_batch = utils.get_batches(train_data_vec, args.batch_size)
-      train_loss = 0.
-      train_total_loss = 0.
-      train_total_ppl = 0.
-      for idx, batch in enumerate(all_batch):
-        train_loss, train_ppl, global_step = model.train(batch.user, batch.product, 
-            batch.rating, batch.review_in, batch.review_out, batch.review_len)
-        train_total_loss += train_loss
-        train_total_ppl += train_ppl
-        if idx % args.print_step == 0:
-          print "Epoch: %d, Batch: %d, Loss: %.9f, Ppl: %.9f" % (epoch, idx, train_loss, train_ppl)
-
-      dev_batch = utils.get_batches(dev_data_vec, dev_args.batch_size)
-      dev_total_loss = 0.
-      for idx, batch in enumerate(dev_batch):
-        dev_loss, dev_ppl = dev_model.eval(batch.user, batch.product, batch.rating, 
-            batch.review_in, batch.review_out, batch.review_len)
-        dev_total_loss += dev_loss
-        dev_total_ppl += dev_ppl
-
-      test_batch = utils.get_batches(test_data_vec, test_args.batch_size)
-      rand_id = random.randint(len(test_batch), 1)
-      batch = test_batch[rand_id]
-      test_model.infer(batch.user, batch.product, batch.rating)
-
-      done_epoch = epoch + 1
-      if args.anneal and done_epoch > args.anneal_start:
-        sess.run(model.learning_rate_decay_op)
-
-      if dev_loss < best_dev_loss:
-        if dev_loss <= dev_loss_threshold * args.improve_threshold:
-          patience = max(patience, done_epoch * args.patient_increase)
-          dev_loss_threshold = dev_loss
-
-        print("Save model!!")
-        model.saver.save(sess, dm_checkpoint_path, global_step=epoch)
-        best_dev_loss = valid_loss
-
-        if args.early_stop and patience <= done_epoch:
-          print "!!Early stop due to run out of patience!!"
-          break
-
-      print "Best validation loss %f" % best_dev_loss
-      print "Done training"
-
-      generator.saver.save(sess, os.path.join(args.save_dir, "model.ckpt"), global_step=global_step)
-      print "model saved at %s" % (os.path.join(args.save_dir, "model.ckpt"))
-      print "%d second this epoch avg_loss: %.9f" % ((time.time() - start_time), loss_total / (idx + 1))  
+      if idx % args.print_step == 0:
+        loaded_train_model.saver.save(train_sess,
+            os.path.join(args.save_dir, "model.ckpt"), global_step=global_step)
+        run_sample_decode(args, infer_model, infer_sess, args.save_dir, infer_batch)
 
 if __name__ == '__main__':
-  main()
+  args = config.get_args()
+  main(args)
