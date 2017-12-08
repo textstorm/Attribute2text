@@ -188,19 +188,23 @@ class Att2Text(object):
     feed_dict = {self.user: user, self.product: product, self.rating: rating,
                  self.review_input: review_input, self.review_output: review_output, 
                  self.review_length: review_length}
-    _, loss, ppl, global_step, predict_count = sess.run([ self.update, 
-                                                          self.train_loss,
-                                                          self.train_ppl, 
-                                                          self.global_step,
-                                                          self.predict_count], 
-                                                          feed_dict=feed_dict)
-    return loss, ppl, global_step, predict_count
+    _, loss, ppl, global_step, predict_count, batch_size = sess.run([ self.update, 
+                                                                      self.train_loss,
+                                                                      self.train_ppl, 
+                                                                      self.global_step,
+                                                                      self.predict_count,
+                                                                      self.batch_size], 
+                                                                      feed_dict=feed_dict)
+    return loss, ppl, global_step, predict_count, batch_size
 
   def eval(self, sess, user, product, rating, review_input, review_output, review_length):
     assert self.mode == tf.contrib.learn.ModeKeys.EVAL
+    feed_dict = {self.user: user, self.product: product, self.rating: rating,
+                 self.review_input: review_input, self.review_output: review_output, 
+                 self.review_length: review_length}    
     return sess.run([self.eval_loss,
                      self.predict_count,
-                     self.batch_size])
+                     self.batch_size], feed_dict=feed_dict)
 
   def infer(self, sess, user, product, rating, review_length):
     assert self.mode == tf.contrib.learn.ModeKeys.INFER
