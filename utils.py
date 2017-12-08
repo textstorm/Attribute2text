@@ -203,17 +203,3 @@ def get_config_proto(log_device_placement=False, allow_soft_placement=True):
       allow_soft_placement=allow_soft_placement)
   config_proto.gpu_options.allow_growth = True
   return config_proto
-
-def compute_perplexity(model, sess, name):
-  total_loss = 0
-  total_predict_count = 0
-  start_time = time.time()
-
-  loss, predict_count, batch_size = model.eval(sess)
-  total_loss += loss * batch_size
-  total_predict_count += predict_count
-
-  perplexity = utils.safe_exp(total_loss / total_predict_count)
-  utils.print_time("  eval %s: perplexity %.2f" % (name, perplexity),
-                   start_time)
-  return perplexity
